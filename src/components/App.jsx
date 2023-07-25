@@ -1,111 +1,120 @@
-import React, { Component } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { nanoid } from 'nanoid';
-import { ContactForm } from './ContactForm/ContactForm';
-import { Filter } from './Filter/Filter';
-import { ContactList } from './ContactList/ContactList';
-import Notiflix from 'notiflix';
+import { ToastContainer, toast } from 'react-toastify';
+import { Section, Container, Title, Accent } from './Styled';
+import 'react-toastify/dist/ReactToastify.min.css';
+import AddContactForm from './ContactForm/AddContactForm';
+import Filter from './Filter/Filter';
+import ContactList from './ContactList/ContactList';
 
+const LS_KEY = 'contactList';
+const INIT_VALUES = [
+  { id: 'id-1', name: 'Rosie Simpson', number: '459-12-56' },
+  { id: 'id-2', name: 'Hermione Kline', number: '443-89-12' },
+  { id: 'id-3', name: 'Eden Clements', number: '645-17-79' },
+  { id: 'id-4', name: 'Annie Copeland', number: '227-91-26' },
+];
 
+export default function App() {
+  const [contacts, setContacts] = useState(INIT_VALUES);
+  const [filter, setFilter] = useState('');
+  const isFirstRender = useRef(true);
 
-
-export class App extends Component {
-  state = {
-    contacts: [
-      { id: 'id-1', name: 'Rosie Simpson', number: '459-12-56' },
-      { id: 'id-2', name: 'Hermione Kline', number: '443-89-12' },
-      { id: 'id-3', name: 'Eden Clements', number: '645-17-79' },
-      { id: 'id-4', name: 'Annie Copeland', number: '227-91-26' },
-    ],
-    filter: '',
-  };
-
-  componentDidMount() {
-    const contactsFromLocalStorage = localStorage.getItem('contactList');
-    const parsedContacts = JSON.parse(contactsFromLocalStorage);
-
-    if (parsedContacts) {
-      this.setState({ contacts: parsedContacts });
+  useEffect(() => {
+    if (isFirstRender.current) {
+      const savedState = JSON.parse(localStorage.getItem(LS_KEY));
+      !savedState
+        ? localStorage.setItem(LS_KEY, JSON.stringify(contacts))
+        : setContacts([...savedState]);
+      isFirstRender.current = false;
+      return;
     }
-  }
+    localStorage.setItem(LS_KEY, JSON.stringify(contacts));
+  }, [contacts]);
 
-  componentDidUpdate(_, prevState) {
-    const prevStateContacts = prevState.contacts;
-    const nextStayContacts = this.state.contacts;
-
-    if (prevStateContacts !== nextStayContacts) {
-      localStorage.setItem('contactList', JSON.stringify(nextStayContacts));
-    }
-  }
-
-  handleSubmit = ({ name, number }) => {
+  const addContact = ({ name, number }) => {
     const contact = {
       id: nanoid(),
       name,
       number,
     };
 
-    const isIncludeName = this.state.contacts.some(
+    const isIncludeName = contacts.some(
       value => value.name.toLowerCase() === name.toLowerCase()
     );
-    const isIncludeNumber = this.state.contacts.some(
-      value => value.number.split('-').join('') === number.split('-').join('')
+    const isIncludeNumber = contacts.some(
+      value =>
+        value.number.replace('+', '').split('-').join('') ===
+        number.replace('+', '').split('-').join('')
     );
 
     if (isIncludeName) {
-     Notiflix.Report.warning(`${name} is already in contacts`);
+      toast.error(() => (
+        <div>
+          <Accent>{name}</Accent> is already in contacts
+        </div>
+      ));
       return;
     }
     if (isIncludeNumber) {
-      Notiflix.Report.warning(`phonenumber${number} is already in contacts`);
-      
+      toast.error(() => (
+        <div>
+          phonenumber <Accent>{number}</Accent> is already in contacts
+        </div>
+      ));
       return;
     }
 
-    this.setState(({ contacts }) => ({
-      contacts: [contact, ...contacts],
-    }));
+    setContacts(state => [contact, ...state]);
   };
 
-  handleDelete = id => {
-    this.setState(prevState => ({
-      contacts: prevState.contacts.filter(contact => contact.id !== id),
-    }));
+  const deleteContact = contactId => {
+    setContacts(state => state.filter(contact => contact.id !== contactId));
   };
 
-  getFilteredContacts = () => {
-    const filterContactsList = this.state.contacts.filter(contact => {
-      return contact.name
-        .toLowerCase()
-        .includes(this.state.filter.toLowerCase());
-    });
-
-    return filterContactsList;
+  const changeFilter = e => {
+    setFilter(e.target.value);
   };
 
-  render() {
-    const { filter } = this.state;
+  const filteredContactsByName = () => {
+    const normalizedFilter = filter.toLowerCase();
 
-    return (
-      <div
-        style={{
-          height: '100vh',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center',
-          fontSize: 20,
-          color: '#010101',
-        }}
-      >
-        <h1>Phonebook</h1>
-        <ContactForm handleSubmit={this.handleSubmit} />
-        <h2> Contacts</h2>
-        <Filter filter={filter} handleChange={this.handleChange} />
-        <ContactList
-          contacts={this.getFilteredContacts()}
-          handleDelete={this.handleDelete}
-        />
-      </div>
+    return contacts.filter(contact =>
+      contact.name.toLowerCase().includes(normalizedFilter)
     );
-  }
+  };
+
+  return (
+    <>
+      <Section>
+        <Container>
+          <Title>Phonebook</Title>
+          <AddContactForm onSubmit={addContact} />
+        </Container>
+      </Section>
+
+      <Section>
+        <Container>
+          <Title>Contacts</Title>
+          <Filter value={filter} onChange={changeFilter} />
+          <ContactList
+            contacts={filteredContactsByName()}
+            onDeleteContact={deleteContact}
+          />
+        </Container>
+      </Section>
+      <ToastContainer
+        position="top-center"
+        autoClose={5000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="light"
+      />
+    </>
+  );
 }
